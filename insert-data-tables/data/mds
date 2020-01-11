@@ -1,0 +1,3 @@
+data dir usage 
+for locally stored data on SUT use dsdgen tool and redirect the generated data into data dir
+for remote data store data dir is dinamically allocated 

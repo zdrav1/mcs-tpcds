@@ -1,0 +1,107 @@
+#####TPC-DS benchmark framework configuration file
+#####------------------------------------------------
+
+#####Product Name for Benchmark
+#####------------------------------------------------
+#PRODUCT=MariaDBColumnStore
+
+
+#####Raw Data Location Types
+#####On System Under Test : local | mcs_local 
+#####Remote Store : remote | mcs_remote
+#####------------------------------------------------
+#STORE=mcs_local
+
+
+#####Remote Store Location 
+#####------------------------------------------------ 
+#REMOTE_DATA_STORE=nfs1.xentio.lan:/mnt/iscsi/QA
+#REMOTE_DATA_STORE=172.20.0.8:/mnt/big8/nfs/qa
+#REMOTE_DATA_STORE=192.168.104.190:/mnt/mdb-back/QA 
+#IMPORTED_REMOTE_DATA_STORE=/mnt/mdb-back/QA
+
+
+#####Path to the mysql client on System Under Test 
+#####-------------------------------------------------------------------------------------------------------------- 
+#SQL=mysql 
+#SQL='mysql --defaults-file=$SUITE_PATH/my.cnf'
+#SQL='/usr/local/mariadb/columnstore/mysql/bin/mysql'
+#SQL='/usr/local/mariadb/columnstore/mysql/bin/mysql --defaults-file=/usr/local/mariadb/columnstore/mysql/my.cnf '
+#SQL='/home/mariadb-user/mariadb/columnstore/mysql/bin/mysql --defaults-extra-file=cnf/my.cnf'
+
+
+#####Path to the MCS tools depend on the mcs installation
+#####---------------------------------------------------------------------------------------------
+#PCPIMPORT=/usr/local/mariadb/columnstore/bin/cpimport       # path to mcs cpimport
+#PCOLXML=/usr/local/mariadb/columnstore/bin/colxml           # path to mcs colxml
+#BULK_DATA_IMPORT=/usr/local/mariadb/columnstore/data/bulk/data/import    #path to colxml data dir
+#PMCSTOOLS=/usr/local/mariadb/columnstore/bin                   #path to mcs tools
+
+#PCPIMPORT=/home/mariadb-user/mariadb/columnstore/bin/cpimport
+#PCOLXML=/home/mariadb-user/mariadb/columnstore/bin/colxml
+#BULK_DATA_IMPORT=/home/mariadb-user/mariadb/columnstore/data/bulk/data/import
+
+
+#####MariaDB ColumnStore Test Configuration
+#####------------------------------------------------------------ 
+#MCS_MODE=1  #mcs load cpimport modes: 1 | 2 | 3 
+#colxml=1    #load data with/without colxml job :  1 | 0
+#parallel=0   #run cpimport mode m1 in load parallel ,will take effect when colxml=0 
+#PM_DATA_PATH=/tmp/tpcds_1000   # path to the data files on MCS PM Nodes for load cpimport modes m2 and m3 
+#PM_DATA_CHUNK_PATH=/tmp/QA/data/data_chunk_ds
+#PM='pm1 pm2'     #list of the MCS PM nodes involved in SUT 'pm1 pm2 pm3 pm4 pm5 pmN'
+
+
+
+#####SUT Environment login details
+#####-------------------------------------------------------------
+#MARIADB_MCS_HOST=columnstore.xentio.lan   # mysql host 
+#MARIADB_MCS_USER=root                     # mysql user 
+#MARIADB_MCS_PORT=3306                     # mysql port
+#MARIADB_MCS_PASS=1                        # mysql password
+#MARIADB_SSH_USER=qa-user                  # ssh user ,need to have root permissions or at least sudoer with NOPASSWD if use with ssh keys
+#MARIADB_SSH_PASS=                         # ssh password
+#MARIADB_SSH_KEY=$HOME/.ssh/mp2            # path to ssh key
+#TESTENV=local                             # test environment name
+
+
+#####Optional mysqltest wrapper and/or collect result statistics server login details
+#####---------------------------------------------------------------------------------
+#BASE_IQE_HOST=t4mysql.xentio.lan          # mysql host
+#BASE_IQE_USER=root                        # mysql user
+#BASE_IQE_PORT=3306                        # mysql port
+#BASE_IQE_PASS=2                           # mysql password
+
+
+
+
+#####RNGSEED  param of the dsqgen query generator
+#####stored for internal workrs with Power and Throughput Tests, dinamically updated by Load Test for tpc-ds qulification
+#####---------------------------------------------  
+RNGSEED=0804160617535
+
+
+
+##############################################################################################################
+# Default configuration for usage of the framework on Single Server ColumnStore.
+# Comment this section when use general parameters above.
+##############################################################################################################
+
+PRODUCT=MariaDBColumnStore                                  # product msc
+STORE=mcs_local                                             # raw data stored locally on SUT
+MCS_MODE=1                                                  # cpimport m1
+colxml=1                                                    # colxml enabled
+
+SQL='/usr/local/mariadb/columnstore/mysql/bin/mysql'        # path to mysql
+PCPIMPORT=/usr/local/mariadb/columnstore/bin/cpimport       # path to mcs cpimport
+PCOLXML=/usr/local/mariadb/columnstore/bin/colxml           # path to mcs colxml
+BULK_DATA_IMPORT=/usr/local/mariadb/columnstore/data/bulk/data/import    #path to colxml data dir
+PMCSTOOLS=/usr/local/mariadb/columnstore/bin                #path to mcs tools
+
+MARIADB_MCS_HOST=columnstore.xentio.lan   # mysql host
+MARIADB_MCS_USER=root                     # mysql user
+MARIADB_MCS_PORT=3306                     # mysql port
+MARIADB_MCS_PASS=1                        # mysql password
+
+
+##############################################################################################################

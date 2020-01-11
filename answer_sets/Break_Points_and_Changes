@@ -1,0 +1,59 @@
+Dismiss and break automation of query validation points  found in answer set  
+
+
+
+1.Unconsistant output query formats 
+-------  The outputs of some queries are done using tab separators between columns
+-------  The outputs of some queries are done using pipe separators between columns
+-------  The outputs of some queries are done using mixed tab separators and spaces or 
+pipe separators and spaces between columns
+
+
+2.Output Header issues
+------- The headers in some query outputs are with missing column names or with stripped column names  
+------- The outputs of some queries include outlining tracers such as  ----------  , but are skipped in the others
+------- The outputs of some queries include vendor specific or some current environment specific   information 
+
+
+3.Output Trailing issues
+------- The outputs of some queries include row number trailers but are skipped in the others
+------- The outputs of some queries include some Warning messages
+------- The outputs of some queries include vendor specific or some current environment specific   information 
+
+
+3.Output Content issues 
+------- The outputs of some queries are with trimmed 0  before the decimal point  
+------- The outputs of some queries are with trimmed 0(es)   after the  decimal point  
+------- The outputs of some queries are done empty string  instead of NULL values , but NULLs but given  in the others  
+------- The outputs of some queries are done  ‘-‘ string  instead of NULL value
+
+
+3. MCS specifics 
+------- The given outputs in the answer sets seems to be done with  decimal (9,8)  precision after the decimal point  while  currently received mcs  results  are with  smaller precision  
+TODO try  fit  the  precision  in  the test results
+------- String sorting  in order by   is case insensitive 
+
+
+
+
+
+Changes done and to be done  in answer set 
+
+-- Output Header issues
+------- Remove the custom or environment specific information
+------- Repaired output  Headers  in the Colum  names 
+------- Remove the tracing lines  from headers 
+
+-- Output Trailing issues
+------- Remove row number trailers
+------- Remove the Warning messages 
+------- Remove the custom or environment specific information
+
+
+
+
+
+
+
+
+

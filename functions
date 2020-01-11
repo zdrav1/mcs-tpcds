@@ -1,0 +1,618 @@
+function DURATION ()
+{
+DAT1=$1
+DAT2=$(date +"%s")
+DUR_TIME=$(($DAT2-$DAT1))
+echo "Duration: $(($DUR_TIME / 3600 )) hours $((($DUR_TIME % 3600) / 60)) minutes $(($DUR_TIME % 60)) seconds"
+}
+
+
+
+
+function DMS ()
+{
+T1=$1
+T2=$(date +%s%3N)
+C_TIME=$(( $T2 - $T1 ))
+echo "$C_TIME"
+}
+
+
+
+
+
+
+
+
+function WORKER_NUM ()
+{
+Num_W=$(mysql -h ${MARIADB_MCS_HOST} -u ${MARIADB_MCS_USER} -p${MARIADB_MCS_PASS}  -B --skip-column-names -e "SELECT count(host) FROM mammothdb.cluster order by host;" )
+echo "$Num_W"
+}
+
+
+
+function SSH_AUT ()
+{
+ ssh  -o PreferredAuthentications=no -o StrictHostKeyChecking=no  ${MARIADB_MCS_HOST}  |&  grep password
+      if [[ ! $? -eq 0 ]]
+          then
+             if [[ -f env/keys/${TESTENV} ]] 
+                 then 
+                     chmod 400 env/keys/${TESTENV} 
+                     return 57 
+                  else
+                     #echo -e "\nCannot read mammothdb version from remote ${MARIADB_MCS_USER}@${MARIADB_MCS_HOST} -- SSH Authentication with password is not enabled;${TESTENV} key  file is not found in $PWD/env/keys "
+                     return 58 
+              fi
+      fi
+}
+
+
+
+
+
+__get_versions ()
+
+{
+
+local os
+local ncs
+local mdb
+local inno
+local ds=2.5.0
+
+os=$($SQL  -h ${MARIADB_MCS_HOST} -u ${MARIADB_MCS_USER} -p${MARIADB_MCS_PASS} -N -B -e "SHOW VARIABLES LIKE \"%version%\";"  2> /dev/null | grep version_compile_os  | cut -f2)
+mcs=$($SQL  -h ${MARIADB_MCS_HOST} -u ${MARIADB_MCS_USER} -p${MARIADB_MCS_PASS} -N -B -e "SHOW VARIABLES LIKE \"%version%\";"  2> /dev/null | grep Columnstore  | cut -f2)
+mdb=$($SQL  -h ${MARIADB_MCS_HOST} -u ${MARIADB_MCS_USER} -p${MARIADB_MCS_PASS} -N -B -e "SHOW VARIABLES LIKE \"%version%\";"  2> /dev/null | grep MariaDB  | cut -f2)
+inno=$($SQL  -h ${MARIADB_MCS_HOST} -u ${MARIADB_MCS_USER} -p${MARIADB_MCS_PASS} -N -B -e "SHOW VARIABLES LIKE \"%version%\";"  2> /dev/null | grep innodb_version  | cut -f2)
+__connect_sql ${BASE_IQE_HOST} ${BASE_IQE_USER} ${BASE_IQE_PASS} > /dev/null
+if [[ $? -eq 252 ]] ; then
+    $SQL  -h ${BASE_IQE_HOST} -u ${BASE_IQE_USER} -p${BASE_IQE_PASS} -e " insert into MDBE_TPC_DS.MDB_Versions ( get_on ,tpc_ds ,compile_os ,columnstore , MariaDB , innodb   ) values ( '${t_now}' ,'${ds}' , '${os}' , '${mcs}' ,  '${mdb}' , '${inno}'  ); "
+fi
+}
+
+
+
+
+
+ __stamp_time ()
+{
+    date "+%Y-%m-%d %H:%M:%S,%3N"
+}
+
+
+
+
+
+
+function __ms_ds_time ()
+{
+    rt=$1
+    drr=$(date --date="$rt" +%s%3N )
+    echo $drr
+}
+
+
+
+
+function __tcp_time ()
+{
+    ds_time=$((  $(__ms_ds_time "$end_time_load" ) - $(__ms_ds_time "$start_time_load" ) ))
+    echo $ds_time
+}
+
+
+
+
+function DEV_QE ()
+{
+SSH_AUT
+if [[  $? -eq 0 ]]
+ then
+dev_qe=$(sshpass -ppass1234  ssh -o PreferredAuthentications=password -o PubkeyAuthentication=no -o StrictHostKeyChecking=no  ${MARIADB_MCS_HOST} -l ${MARIADB_MCS_USER}  'rpm -qa' | grep mammothdb-qe)
+ else
+ if [[  $? -eq 57 ]]
+  then
+  dev_qe=$(ssh -o  StrictHostKeyChecking=no  ${MARIADB_MCS_HOST} -l ${MARIADB_MCS_USER} -i env/keys/${TESTENV} 'rpm -qa' | grep mammothdb-qe )
+ else dev_qe=NA
+ fi
+fi
+echo "$dev_qe"
+}
+
+
+
+
+function __generate_random_id ()
+{
+    local l=$1;
+    [ "$l" == "" ] && l=64;
+    a=$(tr -dc 0-9 < /dev/urandom | head -c ${l} | xargs)
+    echo $a
+}
+
+
+
+
+function DMS ()
+{
+T1=$1
+T2=$(date +%s%3N)
+C_TIME=$(( $T2 - $T1 ))
+echo "$C_TIME"
+}
+
+
+
+
+function GET_NOW ()
+{
+now=$( eval '$SQL  -h ${MARIADB_MCS_HOST} -u ${MARIADB_MCS_USER} -p${MARIADB_MCS_PASS}  -B --skip-column-names -e "SELECT now(); " ')
+echo "$now"
+}
+
+
+
+
+function query_time_1 ()
+{
+mysql -h ${BASE_IQE_HOST} -u ${BASE_IQE_USER} -p${BASE_IQE_PASS} -e " insert into MDBE_TPC_DS.MDB_Query_Time ( get_on ,scale,query_id ,cold_time , warm_time , note  ) values ( '${t_now}' , '${SCALE}' , '${query}' ,  '${cold_ms}' , '${warm_ms}' ,'${intr}' ); "
+}
+
+
+
+
+function load_mdb_time ()
+{
+DUR2=$(echo $DUR1 | cut -d ":" -f2)
+$SQL  -h ${BASE_IQE_HOST} -u ${BASE_IQE_USER} -p${BASE_IQE_PASS} -e " insert into MDBE_TPC_DS.MDB_Load ( env,get_on ,load_file,scale,start_time ,end_time ,load_time ,TLoad ,note ) values (  '$TESTENV' , '${t_now}' , '${LOAD_DB}' ,'${SCALE}' , '${start_time_load}' , '${end_time_load}' , '${DUR2}' , '${tcp_ds_load_time}'  , '${load_method}' ) ; " 
+}
+
+
+
+
+function load_mdb_table_time ()
+{
+DURt2=$(echo $DURt1 | cut -d ":" -f2)
+$SQL -h ${BASE_IQE_HOST} -u ${BASE_IQE_USER} -p${BASE_IQE_PASS} -e " insert into MDBE_TPC_DS.MDB_Table_Load ( env,get_on ,schema_id ,table_id ,load_time ,note ) values ('$TESTENV' , '${t_now}' , '${LOAD_DB}' , '${table_name}' ,'${DURt2}' , '${format}' ) ; " 
+}
+
+
+
+
+function power_mdb_time ()
+{
+DUR2=$(echo $DUR1 | cut -d ":" -f2)
+$SQL -h ${BASE_IQE_HOST} -u ${BASE_IQE_USER} -p${BASE_IQE_PASS} -e " insert into MDBE_TPC_DS.MDB_Power ( env,get_on ,scale,start_time ,end_time ,power_time , TPower ,note ) values ('$TESTENV' , '${t_now}' ,'${SCALE}' , '${start_time_load}' , '${end_time_load}' , '${DUR2}' ,'${tcp_ds_power_time}'  , '${STREAMS}' ) ; "
+}
+
+
+
+
+function throughput_1_mdb_time ()
+{
+DUR2=$(echo $DUR1 | cut -d ":" -f2)
+$SQL -h ${BASE_IQE_HOST} -u ${BASE_IQE_USER} -p${BASE_IQE_PASS} -e " insert into MDBE_TPC_DS.MDB_Throughput_1 ( env,get_on ,streams,start_time ,end_time ,power_time ,TTht1  ,note ) values ('$TESTENV' , '${t_now}' ,'${nthall}' , '${start_time_load}' , '${end_time_load}' , '${DUR2}' ,'${tcp_ds_throughput_time}'  , '${nthall}' ) ; "
+}
+
+
+
+
+
+function throughput_2_mdb_time ()
+{
+DUR2=$(echo $DUR1 | cut -d ":" -f2)
+$SQL -h ${BASE_IQE_HOST} -u ${BASE_IQE_USER} -p${BASE_IQE_PASS} -e " insert into MDBE_TPC_DS.MDB_Throughput_2 ( env,get_on ,streams,start_time ,end_time ,power_time , TTht2 ,note ) values ('$TESTENV' , '${t_now}' ,'${nthall}' , '${start_time_load}' , '${end_time_load}' , '${DUR2}' ,'${tcp_ds_throughput_time}'  , '${nthall}' ) ; "
+}
+
+
+
+
+
+function wait_for ()
+{
+while aa=1
+    do
+      echo -n "#"
+      sleep 1
+    done
+}
+
+
+
+
+
+function __drive_MDBE_L2 ()
+{
+    a=1
+    ex=0
+    while [[ a -eq 1 ]]; do
+        __display_options
+        __drive_options
+    done
+}
+
+
+
+
+
+function __display_options ()
+{
+    echo HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+    echo -e "\nPlease drive the execution flow of the MDBE-level-2 framework"
+    echo -e "\tEnter \n\t1\tContinue the execution of MDBE-level-2 framework and stop at the next failed query. "
+    echo -e "\t2\tBreak the execution of MDBE-level-2 framework and exit. "
+    echo -e "\t3\tContinue the execution of MDBE-level-2 framework and break at the next failed query. "
+    echo -e "\t4\tContinue the execution of MDBE-level-2 framework without breaking nevertheless of the presence of failed queries. "
+    echo -e "\t5\tRepeat the failed query. "
+    echo HHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHHH
+}
+
+
+
+
+function __drive_options ()
+{
+    read -r  enter
+    case $enter in
+        1)
+            a=0
+        ;;
+        2)
+            kill -9 $SANITY_PID
+        ;;
+        3)
+            FAILED_STOP=2
+            a=0
+        ;;
+        4)
+            FAILED_STOP=
+            a=0
+        ;;
+        5)
+            ex=$(( $ex + 1 ))
+            __repeat_mysqltest
+        ;;
+        *)
+    esac
+}
+
+
+
+
+
+
+function __repeat_mysqltest ()
+{
+        OK_baseline=$(cat "${RESULTDIR}/scripts/${TESTCASENAME}/${TESTCASENAME}$i.baseline" | $MYSQLTEST -h ${BASE_IQE_HOST} -u ${BASE_IQE_USER} -p${BASE_IQE_PASS} --include "./test-cases/setup-test.inc" -r -R "${RESULTDIR}/results/${TESTCASENAME}/${TESTCASENAME}${i}_ex${ex}.result")
+        OK_mdb=$(cat "${RESULTDIR}/scripts/${TESTCASENAME}/${TESTCASENAME}$i.mammoth" | $MYSQLTEST -h ${MARIADB_MCS_HOST} -u ${MARIADB_MCS_USER} -p${MARIADB_MCS_PASS} --include "./test-cases/setup-test.inc" -R "${RESULTDIR}/results/${TESTCASENAME}/${TESTCASENAME}${i}_ex${ex}.result")
+        if [ "${OK_baseline}" = "ok" ] && [ "${OK_mdb}" = "ok" ]; then
+                echo "${TESTCASENAME}$i: PASSED" 
+                a=0
+        else
+                echo "${TESTCASENAME}$i: FAILED" 
+                echo -e "\e[1;31m FAILED at\n$(cat "${RESULTDIR}/scripts/${TESTCASENAME}/${TESTCASENAME}$i.mammoth") \e[0m"
+        fi
+}
+
+
+
+
+
+function __validate_sacale () 
+{ 
+#echo "1 10 100 1000 3000 10000 30000  100000 1000000 10000000 100000000" | grep -F -q -w "$1"; 
+echo "1 10 100 1000 3000" | grep -F -q -w "$1";
+}
+
+
+
+
+
+function __locate_mts ()
+{
+ ( ifconfig | grep -w $( dig +short -t a $MARIADB_MCS_HOST) &>/dev/null ) || ( ifconfig | grep -w $MARIADB_MCS_HOST &>/dev/null )
+}
+
+
+
+
+
+function __segregate_data ()
+{
+fspec="${1}"
+num_files=$2
+
+
+total_lines=$(wc -l <${fspec})
+((lines_per_file = (total_lines + num_files - 1) / num_files))
+split --lines=${lines_per_file} ${fspec} ${fspec%.*} --numeric-suffixes=1 --suffix-length=1
+
+split --lines=${lines_per_file} ${fspec} ${fspec%.*} --numeric-suffixes=1 --suffix-length=1
+}
+
+
+
+
+
+function __node_um ()
+{
+
+#Environment with 1 UM ;
+$PMCSTOOLS/mcsadmin help &> /dev/null
+if [[ $? -ne 0 ]] ; then echo -e " Unable to locale mcsadmin tool troght path PMCSTOOLS=$PMCSTOOLS , please set correct path in cfg " ; exit 1 ; fi 
+UM_IP=$($PMCSTOOLS/mcsadmin getSystemNetworkConfig | grep -v -i console | grep um | awk '{print $7}')
+ping $UM_IP -c 1  > /dev/null 
+if [[ $? -ne 0 ]] ; then echo -e "The UM  $UM_IP does not respond " ; exit 1  ; fi
+ ifconfig | grep -Eow "$UM_IP"  > /dev/null 
+if [[ $? -eq 0 ]] ; then return 111 ; fi 
+}
+
+
+ 
+
+
+function __node_pm ()
+{
+
+PM=$($PMCSTOOLS/mcsadmin getSystemNetworkConfig | grep -v -i console | grep pm | awk '{print $1}')
+PM_IP=$($PMCSTOOLS/mcsadmin getSystemNetworkConfig | grep -v -i console | grep pm | awk '{print $7}')
+pp=($PM)
+pp_ip=($PM_IP)
+p_num=${#pp_ip[*]}
+pms=()
+local i=0
+jm=0
+
+for  (( i=0 ; i<$p_num ; i++ ))
+do
+   ping "${pp_ip[i]}" -c 1  > /dev/null
+   if [[ $? -ne 0 ]] ; then 
+       echo -e "The PM node "${pp[i]}" "${pp_ip[i]}" does not respond "   
+    fi
+   ifconfig | grep -Eow  "${pp_ip[i]}" > /dev/null
+   if [[ $? -eq 0 ]] ; then
+        pn_ip="${pp_ip[i]}"
+        pn="${pp[i]}"
+   else
+        pms[jm]="${pp_ip[i]}"
+        pps[jm]="${pp[i]}"
+        jm=$(( $jm + 1 ))
+   fi
+done
+PM=${pms[*]} 
+}
+
+
+
+
+function __locate_pms ()
+{
+
+PM=$($PMCSTOOLS/mcsadmin getSystemNetworkConfig | grep -v -i console | grep pm | awk '{print $1}')
+PM_IP=$($PMCSTOOLS/mcsadmin getSystemNetworkConfig | grep -v -i console | grep pm | awk '{print $7}')
+pp=($PM)
+pp_ip=($PM_IP)
+p_num=${#pp_ip[*]}
+local i=0
+
+for  (( i=0 ; i<$p_num ; i++ ))
+do
+   ping "${pp_ip[i]}" -c 1  > /dev/null
+   if [[ $? -ne 0 ]] ; then
+       echo -e "The PM node "${pp[i]}" "${pp_ip[i]}" does not respond " ; exit 1 
+    fi
+done
+}
+
+
+
+
+
+function __pm_num ()
+{
+local pm_num
+pm_num=$($PMCSTOOLS/mcsadmin getModuleConfig | grep "ModuleType = pm" | wc -l)
+echo $pm_num
+}
+
+
+
+
+
+function __test_db ()
+{
+local ex
+
+$SQL -h ${MARIADB_MCS_HOST} -u ${MARIADB_MCS_USER} -p${MARIADB_MCS_PASS}  -N -B -e "show tables from ${TEST_DB};"  1> /dev/null |& grep -v "Warning: Using a password on the command line interface can be insecure."
+ex=${PIPESTATUS[0]}
+   if [[ $ex -ne 0 ]]
+         then
+         echo -e "\n Test DB ${TEST_DB} nout found on SUT "
+         exit 1
+   fi
+}
+
+
+
+
+
+function __path_sql ()
+{
+local ex
+
+$SQL --help &> /dev/null
+ex=$?
+   if [[ $ex -ne 0 ]]
+         then
+         echo -e " Unable to locate path to mysql client through   /usr/local/mariadb/columnstore/mysql/bin/mysql \nPlease check the path for mysql tools and update test cfg file,section Path to the mysql client on SUT in SQL var"
+         exit 1
+   fi
+}
+
+
+
+
+function __connect_sql ()
+{
+
+local mysql_host="${1:-'227.0.0.1'}"
+local mysql_user="${2:-user}"
+local mysql_pass="${3:-'pass'}"
+local  m="${4:-4}"
+local ex
+   eval '$SQL -h ${mysql_host} -u ${mysql_user} -p${mysql_pass} -N -B -e "SHOW VARIABLES LIKE \"%version%\";" '
+   #$SQL -h ${mysql_host} -u ${mysql_user} -p${mysql_pass} -N -B -e "SHOW VARIABLES LIKE \"%version%\";" 
+   ex=$?
+   if [[ $ex -ne 0 ]]
+         then
+             if [[ $m -eq 1 ]] ; then
+                 echo -e " Unable to connect SUT  ${mysql_host}:3306  with username  ${mysql_user} and password ${mysql_pass} "
+                 exit 1
+             elif [[ $m -eq 4 ]] ; then 
+                    echo -e " Unable to connect mysql_test_statistics_server   ${mysql_host}:3306  with username  ${mysql_user} and password ${mysql_pass} "
+                    echo -e "You might prefer to use the flat files with test statistics generated after test in dir $PWD/results "
+             else
+                  if [[ $m -eq 2 ]] ; then
+                      echo -e " Unable to connect mysql_test_wrapper  ${mysql_host}:3306  with username  ${mysql_user} and password ${mysql_pass} "
+                      exit 1
+                  fi
+             fi
+         return 254
+         else
+             #echo -e "\nStart Validation Test 1"
+               case $m  in 
+                   1)  echo -e "Connection to SUT   ${mysql_host}:3306  with username  ${mysql_user} and password ${mysql_pass} is ok" ;;
+                   2)  echo -e "Connection to mysql_test_wrapper   ${mysql_host}:3306  with username  ${mysql_user} and password ${mysql_pass} is ok" ;;
+                   4)  echo -e "Connection to mysql_test_statistics_server   ${mysql_host}:3306  with username  ${mysql_user} and password ${mysql_pass} is ok" ;;
+                   *)  echo -e "Internal Error5" ;exit 1
+                esac
+                return 252
+
+   fi
+}
+
+
+
+
+function __terminate_query ()
+{
+local i
+echo -e "Terminating remained queries which are currently proceeded "
+sqlrem=$($SQL -h ${MARIADB_MCS_HOST} -u ${MARIADB_MCS_USER} -p${MARIADB_MCS_PASS} ${TEST_DB} -B -N -e " show processlist" 2> /dev/null | grep Query | awk '{print $1}')
+for i in $sqlrem
+    do
+       $SQL -h ${MARIADB_MCS_HOST} -u ${MARIADB_MCS_USER} -p${MARIADB_MCS_PASS} ${TEST_DB}  -e "kill ${i};"
+    done
+}
+
+
+
+
+function __mysqlimport ()
+{
+local wait=$1
+   timeout ${wait}  bash -c " mysqlimport  --version &> /dev/null"
+   ex=$?
+   if [[ $ex -ne 0 ]]
+         then
+             echo 12
+         else
+             echo 11
+   fi
+}
+
+
+
+
+function __strip_null ()
+{
+    sed -i "s/NULL//g" $1   #strip NULLs from the query result output
+    cat $1 | tr "\t" "|" > $1ult    ##format horizontal tabs in the result output  to '|'
+    rm $1
+}
+
+
+
+
+function __strip_null0 ()
+{
+    sed -i "s/NULL//g" $1   #strip NULLs from the query result output
+    mv $1 ${1}ult
+}
+
+
+
+
+function __load_rows_minutes ()
+{
+    echo "${row_counts["$LOAD_DB"]}" $tcp_ds_load_time  60000 |  awk '{printf "%.0f\n" ,  $1 / ($2 / $3) }'
+}
+
+
+
+
+function __disc_usage ()
+{
+    local ur_disc=$1;
+    local usage=$(echo $ur_disc  | awk '{print $1 }' );
+    local m_unit=$(echo $ur_disc | awk '{print $2 }' );
+
+          case $m_unit in
+
+               Bytes) usage_b=$usage ; echo $usage_b ;;
+               B)    usage_b=$usage  ; echo $usage_b ;;
+               KiB)  usage_b=$(echo 1024 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               kB)   usage_b=$(echo 1000 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               Mbit) usage_b=$(echo 1000000 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               MiB)  usage_b=$(echo 1048576 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               MB)   usage_b=$(echo 1000000 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               Gbit) usage_b=$(echo 1000000000 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               GiB)  usage_b=$(echo 1073741824 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               GB)   usage_b=$(echo 1000000000 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               Tbit) usage_b=$(echo 1000000000000 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               TiB)  usage_b=$(echo 1099511627776 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               TB)   usage_b=$(echo 1000000000000 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               Pbit) usage_b=$(echo 1000000000000000 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               PiB)  usage_b=$(echo 1125899906842624 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               PB)   usage_b=$(echo 1000000000000000 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               Ebit) usage_b=$(echo 1000000000000000000 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;; 
+               EiB)  usage_b=$(echo 1152921504606846976 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               EB)   usage_b=$(echo 1000000000000000000 $usage  | awk '{print $1 * $2 }' ) ; echo $usage_b ;;
+               *)     usage_b='error' ;
+ esac
+
+}
+
+
+
+
+function __disc_ratio ()
+{
+    local ur_disc=${1}
+    local start_usage=${2}
+    local m_unit=$(echo $ur_disc | awk '{print $2 }' )
+    local m
+
+    end_usage=$(__disc_usage "${ur_disc}")
+    if [[ $end_usage == error ]] 
+        then 
+              echo -e "Error2.Disk usage received with unknown measuring unit $ur_disc from columnstore_info.total_usage" 
+        else
+              case $m_unit in
+                   MB|GB|TB|PB|EB) m=1000000000 ; unit='GB' ;;
+                   Mbit|Gbit|Tbit|Pbit|Ebit)  m=1000000000 ; unit='GB' ;; 
+                   MiB|GiB|TiB|PiB|EiB)       m=1073741824 ; unit='GiB' ;;
+                   *)                         m='error' ;
+
+              esac
+        fi
+        echo -e "\nUsed disk space for loaded $SCALE GB data" | tee -a results/load_time
+        load_space=$(echo $end_usage $start_usage $m |  awk '{print ($1 - $2)/ $3 }' ) 
+        echo $end_usage $start_usage $m $unit |  awk '{print ($1 - $2)/ $3 " " $4 }' | tee -a results/load_time
+        echo -e "\nData storage ratio" | tee -a results/load_time
+        echo $load_space $SCALE  |  awk '{printf "%.2f\n" , ($1 / $2) }' | tee -a results/load_time
+
+}
+
